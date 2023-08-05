@@ -1,0 +1,4 @@
+main: dev.covector.mobarenacustomgive.CustomGivePlugin
+name: MobArenaCustomGive
+version: 1.0
+softdepend: [MobArena, MMOItems, MobArenaExtension]
