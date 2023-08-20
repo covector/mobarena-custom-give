@@ -9,9 +9,13 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.Chest;
 import org.bukkit.World;
-import com.garbagemule.MobArena.things.ItemStackParser;
 
-public class ChestItemParser implements ItemStackParser {
+import java.util.List;
+import java.util.ArrayList;
+
+import com.garbagemule.MobArena.things.ThingParser;
+
+public class ChestItemParser implements ThingParser {
     private Server server;
 
     public ChestItemParser(Server server) {
@@ -19,8 +23,13 @@ public class ChestItemParser implements ItemStackParser {
     }
 
     @Override
-    @Nullable
-    public ItemStack parse(String itemKey) {
+    public ItemStacksThing parse(String itemKey) {
+        List<ItemStack> stacks = parseItemStacks(itemKey);
+        if (stacks == null) return null;
+        return new ItemStacksThing(stacks);
+    }
+
+    public List<ItemStack> parseItemStacks(String itemKey) {
         if (!itemKey.startsWith("ci:")) return null;
         String[] args = itemKey.split(":");
         if (args.length != 4) {
@@ -36,17 +45,45 @@ public class ChestItemParser implements ItemStackParser {
             args[2]));
             return null;
         }
-        int x, y, z, index;
+        int x, y, z;
         try {
             x = Integer.parseInt(coords[0]);
             y = Integer.parseInt(coords[1]);
             z = Integer.parseInt(coords[2]);
-            index = Integer.parseInt(args[3]);
         } catch (NumberFormatException e) {
             server.getLogger().severe(String.format(
                 "Failed to parse '%s' - the format should be 'ci:<world-name>:<chest-x-coord> <chest-y-coord> <chest-z-coord>:<item-index>'",
             itemKey));
             return null;
+        }
+        int idStart, idEnd;
+        if (args[3].contains("-")) {
+            String[] idRange = args[3].split("-");
+            if (idRange.length != 2) {
+                server.getLogger().severe(String.format(
+                    "Failed to parse '%s' - <item-index> should be a number or a range of numbers in the format '<start>-<end>'",
+                args[3]));
+                return null;
+            }
+            try {
+                idStart = Integer.parseInt(idRange[0]);
+                idEnd = Integer.parseInt(idRange[1]);
+            } catch (NumberFormatException e) {
+                server.getLogger().severe(String.format(
+                    "Failed to parse '%s' - <item-index> should be a number or a range of numbers in the format '<start>-<end>'",
+                args[3]));
+                return null;
+            }
+        } else {
+            try {
+                idStart = Integer.parseInt(args[3]);
+                idEnd = idStart;
+            } catch (NumberFormatException e) {
+                server.getLogger().severe(String.format(
+                    "Failed to parse '%s' - the format should be 'ci:<world-name>:<chest-x-coord> <chest-y-coord> <chest-z-coord>:<item-index>'",
+                itemKey));
+                return null;
+            }
         }
         World world = server.getWorld(args[1]);
         if (world == null) {
@@ -60,16 +97,21 @@ public class ChestItemParser implements ItemStackParser {
             server.getLogger().severe(String.format(
                 "The block at '%s' is not a chest",
             args[2]));
-            return new ItemStack(Material.AIR);
+            return null;
         }
         Chest chest = (Chest) block.getState();
-        ItemStack items = chest.getBlockInventory().getItem(index);
-        if (items == null) {
-            server.getLogger().severe(String.format(
-                "There is no items at '%s'",
-            args[3]));
-            return new ItemStack(Material.AIR);
+
+        List<ItemStack> items = new ArrayList<ItemStack>();
+        for (int i = idStart; i <= idEnd; i++) {
+            ItemStack item = chest.getBlockInventory().getItem(i);
+            if (item == null) {
+                server.getLogger().info(String.format(
+                    "There is no item at '%s'",
+                i));
+            } else {
+                items.add(item.clone());
+            }
         }
-        return items.clone();
+        return items;
     }
 }
